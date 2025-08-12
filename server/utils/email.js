@@ -1,69 +1,46 @@
-const sgMail = require("@sendgrid/mail");
+const nodemailer = require("nodemailer");
 
-// Set SendGrid API key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+let transporterInstance = null;
 
-async function sendEmail({ to, subject, text, html }) {
+const getTransporter = async () => {
+  if (transporterInstance) return transporterInstance;
+
+  const host = process.env.SMTP_HOST || "";
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const secure = process.env.SMTP_SECURE === "true"; // false for STARTTLS on 587
+  const user = process.env.SMTP_USER || "";
+  const pass = process.env.SMTP_PASS || "";
+
+  if (!host) {
+    throw new Error("SMTP_HOST not set. Configure Brevo SMTP env vars.");
+  }
+
+  transporterInstance = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: user && pass ? { user, pass } : undefined,
+  });
+
+  return transporterInstance;
+};
+
+const sendEmail = async ({ to, subject, html, text }) => {
   try {
-    // Validate required environment variables
-    if (!process.env.SENDGRID_API_KEY) {
-      throw new Error("SENDGRID_API_KEY is not set in environment variables");
+    const transporter = await getTransporter();
+    const from = process.env.FROM_EMAIL || "no-reply@example.com";
+
+    const info = await transporter.sendMail({ from, to, subject, html, text });
+    if (info?.messageId) {
+      console.log(`[email] Sent: ${subject} → ${to} (id: ${info.messageId})`);
+    } else {
+      console.log(`[email] Sent: ${subject} → ${to}`);
     }
-
-    if (!process.env.SENDGRID_FROM_EMAIL) {
-      throw new Error(
-        "SENDGRID_FROM_EMAIL is not set in environment variables"
-      );
-    }
-
-    
-    const msg = {
-      to,
-      from: {
-        email: process.env.SENDGRID_FROM_EMAIL,
-        name: "Online Exam Portal",
-      },
-      subject,
-      text,
-      html,
-      // Improve deliverability settings
-      trackingSettings: {
-        clickTracking: {
-          enable: false,
-          enableText: false,
-        },
-        openTracking: {
-          enable: false,
-        },
-        subscriptionTracking: {
-          enable: false,
-        },
-      },
-      // Add headers to improve deliverability
-      headers: {
-        "X-Priority": "3", // Normal priority
-        "X-MSMail-Priority": "Normal",
-        Importance: "normal",
-        "X-Mailer": "Online Exam Portal",
-        "List-Unsubscribe": `<mailto:${process.env.SENDGRID_FROM_EMAIL}?subject=unsubscribe>`,
-      },
-      // Add categories for better tracking
-      categories: ["verification", "exam-portal"],
-    };
-
-    const response = await sgMail.send(msg);
-    console.log("Email sent successfully via SendGrid");
-    console.log("Message ID:", response[0].headers["x-message-id"]);
-    console.log("To:", to);
-    console.log("From:", process.env.SENDGRID_FROM_EMAIL);
     return true;
-  } catch (error) {
-    console.error("SendGrid email sending failed:", error);
-    if (error.response) {
-      console.error("SendGrid Error Details:", error.response.body);
-    }
+  } catch (err) {
+    console.error("[email] Send failed:", err.message);
     return false;
   }
-}
+};
 
 module.exports = { sendEmail };

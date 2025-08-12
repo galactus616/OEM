@@ -46,46 +46,6 @@ app.use("/api/auth", require("./routes/authRoutes"));
 // app.use('/api/exams', require('./routes/examRoutes'));
 // app.use('/api/admin', require('./routes/adminRoutes'));
 
-// Add this test route after your existing routes
-app.get("/test-sendgrid", async (req, res) => {
-  try {
-    console.log("=== SendGrid Debug Info ===");
-    console.log("SENDGRID_API_KEY exists:", !!process.env.SENDGRID_API_KEY);
-    console.log("SENDGRID_FROM_EMAIL:", process.env.SENDGRID_FROM_EMAIL);
-    console.log(
-      "API Key length:",
-      process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : "N/A"
-    );
-
-    const { sendEmail } = require("./utils/email");
-
-    await sendEmail({
-      to: "deepusingcursor@gmail.com",
-      subject: "SendGrid Test - " + new Date().toISOString(),
-      text: "This is a test email sent via SendGrid",
-      html: "<h1>SendGrid Test</h1><p>This is a test email sent via SendGrid</p>",
-    });
-
-    res.json({
-      message: "SendGrid test email sent successfully",
-      debug: {
-        apiKeyExists: !!process.env.SENDGRID_API_KEY,
-        fromEmail: process.env.SENDGRID_FROM_EMAIL,
-        apiKeyLength: process.env.SENDGRID_API_KEY
-          ? process.env.SENDGRID_API_KEY.length
-          : 0,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-      debug: {
-        apiKeyExists: !!process.env.SENDGRID_API_KEY,
-        fromEmail: process.env.SENDGRID_FROM_EMAIL,
-      },
-    });
-  }
-});
 
 // Socket.IO connection handling
 io.on("connection", (socket) => {

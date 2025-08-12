@@ -2,6 +2,9 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
 const { sendEmail } = require("../utils/email");
+const {
+  verificationEmailTemplate,
+} = require("../utils/templates/verificationEmail");
 
 // Helpers to generate tokens
 const generateAccessToken = (user) => {
@@ -44,44 +47,7 @@ const sendVerificationForUser = async (user) => {
 
   const subject = "Verify Your Email - Online Exam Portal";
   const text = `Hello ${user.name},\n\nYour verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, please ignore this email.\n\nBest regards,\nOnline Exam Portal Team`;
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Email Verification</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4CAF50; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background: #f9f9f9; }
-        .code { background: #fff; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; color: #4CAF50; border: 2px solid #4CAF50; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Email Verification</h1>
-        </div>
-        <div class="content">
-          <p>Hello <strong>${user.name}</strong>,</p>
-          <p>Thank you for registering with Online Exam Portal. Please use the verification code below to complete your registration:</p>
-          <div class="code">${code}</div>
-          <p><strong>This code will expire in 10 minutes.</strong></p>
-          <p>If you didn't request this verification code, please ignore this email.</p>
-          <p>Best regards,<br>Online Exam Portal Team</p>
-        </div>
-        <div class="footer">
-          <p>This is an automated message. Please do not reply to this email.</p>
-          <p>© 2024 Online Exam Portal. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+  const html = verificationEmailTemplate({ code, userName: user.name });
 
   try {
     await sendEmail({ to: user.email, subject, text, html });
