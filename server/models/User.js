@@ -29,15 +29,12 @@ const userSchema = new mongoose.Schema(
       type: [Number],
       default: null,
     },
-    isBanned: {
-      type: Boolean,
-      default: false,
-    },
     emailVerified: {
       type: Boolean,
       default: false,
     },
-    emailVerificationCodeHash: {
+    // Store OTP in plain form (dev/simple) – not recommended for production
+    emailVerificationCode: {
       type: String,
       default: null,
       select: false,
@@ -90,7 +87,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.password;
-  delete user.emailVerificationCodeHash;
+  delete user.emailVerificationCode;
   delete user.emailVerificationExpiresAt;
   return user;
 };

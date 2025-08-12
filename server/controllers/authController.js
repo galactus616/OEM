@@ -1,5 +1,4 @@
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
 const User = require("../models/User");
 const { sendEmail } = require("../utils/email");
 const {
@@ -27,7 +26,7 @@ const setRefreshCookie = (res, token) => {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "lax" : "lax",
-    path: "/api/auth/refresh",
+    path: "/",
     maxAge:
       parseInt(process.env.REFRESH_COOKIE_MAX_AGE_MS || "604800000", 10) ||
       7 * 24 * 60 * 60 * 1000,
@@ -36,12 +35,10 @@ const setRefreshCookie = (res, token) => {
 
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
-const hashOtp = (code) =>
-  crypto.createHash("sha256").update(code).digest("hex");
 
 const sendVerificationForUser = async (user) => {
   const code = generateOtp();
-  user.emailVerificationCodeHash = hashOtp(code);
+  user.emailVerificationCode = code;
   user.emailVerificationExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
   await user.save();
 
@@ -105,15 +102,15 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).select(
-      "+emailVerificationCodeHash +emailVerificationExpiresAt"
+      "+emailVerificationCode +emailVerificationExpiresAt"
     );
 
-    if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ message: "Invalid email or password" });
+    if (!user) {
+      return res.status(401).json({ message: "Email not registered" });
     }
 
-    if (user.isBanned) {
-      return res.status(403).json({ message: "Account is banned" });
+    if (!(await user.comparePassword(password))) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const accessToken = generateAccessToken(user);
@@ -140,7 +137,7 @@ const loginUser = async (req, res) => {
 // @access  Private (must be logged in)
 const resendVerification = async (req, res) => {
   const user = await User.findById(req.user._id).select(
-    "+emailVerificationCodeHash +emailVerificationExpiresAt"
+    "+emailVerificationCode +emailVerificationExpiresAt"
   );
   if (!user) return res.status(404).json({ message: "User not found" });
   if (user.emailVerified)
@@ -155,31 +152,44 @@ const resendVerification = async (req, res) => {
 // @access  Private (must be logged in)
 const verifyEmail = async (req, res) => {
   const { code } = req.body;
+
   if (!code) return res.status(400).json({ message: "Code is required" });
 
   const user = await User.findById(req.user._id).select(
-    "+emailVerificationCodeHash +emailVerificationExpiresAt"
+    "+emailVerificationCode +emailVerificationExpiresAt"
   );
+
   if (!user) return res.status(404).json({ message: "User not found" });
   if (user.emailVerified)
     return res.status(400).json({ message: "Email already verified" });
 
-  if (!user.emailVerificationCodeHash || !user.emailVerificationExpiresAt)
+  if (!user.emailVerificationCode || !user.emailVerificationExpiresAt)
     return res.status(400).json({ message: "No active verification request" });
 
   if (user.emailVerificationExpiresAt < new Date()) {
     return res.status(400).json({ message: "Code expired" });
   }
 
-  const isMatch = user.emailVerificationCodeHash === hashOtp(code);
+  const isMatch = user.emailVerificationCode === code;
+
   if (!isMatch) return res.status(400).json({ message: "Invalid code" });
 
   user.emailVerified = true;
-  user.emailVerificationCodeHash = null;
+  user.emailVerificationCode = null;
   user.emailVerificationExpiresAt = null;
   await user.save();
 
-  return res.json({ message: "Email verified" });
+  return res.json({
+    message: "Email verified",
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      faceDescriptor: user.faceDescriptor,
+      emailVerified: user.emailVerified,
+    },
+  });
 };
 
 // @desc    Refresh access token
@@ -228,7 +238,7 @@ const logoutUser = async (_req, res) => {
   res.clearCookie("jid", {
     httpOnly: true,
     sameSite: "lax",
-    path: "/api/auth/refresh",
+    path: "/", // Changed from "/api/auth/refresh" to "/" for broader access
   });
   return res.json({ message: "Logged out" });
 };
